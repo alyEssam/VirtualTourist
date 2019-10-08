@@ -70,3 +70,9 @@ struct photo : Codable {
     let height_m : Int
     let width_m : Int
 }
+
+struct flickerResponseURL {
+    let url_m : URL?
+    //  let flickerImage : UIImage?
+    // let title: String?
+}
