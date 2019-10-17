@@ -9,78 +9,72 @@
 import UIKit
 import MapKit
 import CoreData
+import SVProgressHUD
 
 let identifier = "goToPhotoAlbum"
 class TravelLocationMapViewController: UIViewController {
+    
     var pinList = [Pin]()
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-    @IBOutlet weak var mapView: MKMapView!
+    var editState: Bool = false
+    //IBOutlets :
     
+    @IBOutlet weak var mapView: MKMapView!    //TravelLocationMapViewController Life Cycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        mapView.delegate = self
+        SVProgressHUD.dismiss()
+        /* Initialize Long Press Gesture Recognizer */
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(addPin(gestureRecognizer:)))
+        longPress.minimumPressDuration = 0.6
+        mapView.addGestureRecognizer(longPress)
         loadPins()
     }
 
-    //IBActions :
-    @IBAction func addPin(_ sender: UILongPressGestureRecognizer) {
-        let location = sender.location(in: self.mapView)
+       @objc func addPin(gestureRecognizer: UILongPressGestureRecognizer) {
+        /* Add Pin when the Long Press Gesture state has began */
+        if gestureRecognizer.state == UIGestureRecognizer.State.began {
+          let location = gestureRecognizer.location(in: self.mapView)
+          let locCoord = self.mapView.convert(location, toCoordinateFrom: self.mapView)
+          let annotation = MKPointAnnotation()
+          annotation.coordinate = locCoord
+          self.mapView.addAnnotation(annotation)
         
-        let locCoord = self.mapView.convert(location, toCoordinateFrom: self.mapView)
-        let annotation = MKPointAnnotation()
-        annotation.coordinate = locCoord
-        self.mapView.addAnnotation(annotation)
-        
-        let newPin = Pin(context: self.context)
-        newPin.latitude  = locCoord.latitude
-        newPin.longitude = locCoord.longitude
-        self.pinList.append(newPin)
-        self.saveCategouries()
+          let newPin = Pin(context: self.context)
+          newPin.latitude  = locCoord.latitude
+          newPin.longitude = locCoord.longitude
+          //self.pinList.append(newPin)
+          self.savePins()
+          DispatchQueue.main.async {
+              self.loadPins()
+          }
+        }
+    }
+
+    // MARK: - Save the context
+    func savePins(){
+        do{
+            try context.save()
+        } catch {
+            print("Error saving context \(error)")
+            
+        }
+        self.mapView.reloadInputViews()
     }
     
-
     // MARK: - Navigation
 
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == identifier{
             let photoAlbumVC = segue.destination as! PhotoAlbumViewController
             let selectedPin: Pin = sender as! Pin
-            photoAlbumVC.selectedPin = selectedPin}
+            photoAlbumVC.selectedPin = selectedPin
+        }
     }
-    
-   
+}
+// MARK: - MKMapViewDelegate Methods
 
-    // MARK: - MKMapViewDelegate
-
+extension TravelLocationMapViewController: MKMapViewDelegate {
     
-    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        
-        let reuseId = "pin"
-        
-        var pinView = mapView.dequeueReusableAnnotationView(withIdentifier: reuseId) as? MKPinAnnotationView
-        
-        if pinView == nil {
-            pinView = MKPinAnnotationView(annotation: annotation, reuseIdentifier: reuseId)
-            pinView!.pinTintColor = .red
-        }
-        else {
-            pinView!.annotation = annotation
-        }
-        
-        return pinView
-    }
-    
-    
-    
-//Save the context
-    func saveCategouries(){
-        do{
-            try context.save()
-        } catch {
-            print("Error saving context \(error)")
-        }
-        self.mapView.reloadInputViews()
-    }
     //MARK: - LoadPins
     func loadPins(with request: NSFetchRequest<Pin> = Pin.fetchRequest()){
 
@@ -106,32 +100,38 @@ class TravelLocationMapViewController: UIViewController {
         catch {
             print("Error Fetching data from context \(error)")
         }
+        self.mapView.reloadInputViews()
+
     }
     
-}
-
-extension TravelLocationMapViewController: MKMapViewDelegate {
+    
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        
+        let reuseId = "pin"
+        var pinView = mapView.dequeueReusableAnnotationView(withIdentifier: reuseId) as? MKPinAnnotationView
+        if pinView == nil {
+            pinView = MKPinAnnotationView(annotation: annotation, reuseIdentifier: reuseId)
+            pinView!.pinTintColor = .red
+        }
+        else {
+            pinView!.annotation = annotation
+        }
+        return pinView
+    }
+    
     
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         mapView.deselectAnnotation(view.annotation, animated: true)
         let lat = view.annotation?.coordinate.latitude
         let lon = view.annotation?.coordinate.longitude
-        print("The selected pin's lat:\(String(describing: lat)), lon:\(String(describing: lon))")
+        //print("The selected pin's lat:\(String(describing: lat)), lon:\(String(describing: lon))")
         let fetchRequest:NSFetchRequest<Pin> = Pin.fetchRequest()
         do {
             let searchResults = try context.fetch(fetchRequest)
             for pin in searchResults as [Pin] {
                 if pin.latitude == lat!, pin.longitude == lon! {
-                    let selectedPin = pin
-                    print("Found pin info.")
-                    /* Segue to Photo Album VC */
-                    print("Perform segue to the photo album.")
-                  //  FlickerClient.searchByLatLon(latitude: lat!, longitude: lon!, completion: handleSearchByLatLonResponse)
-                    let photoAlbumVC = self.storyboard?.instantiateViewController(withIdentifier: identifier) as! PhotoAlbumViewController
-                
-                    photoAlbumVC.selectedPin = selectedPin
                     DispatchQueue.main.async{
-                        self.present(photoAlbumVC, animated: true, completion: nil)
+                        self.performSegue(withIdentifier: identifier, sender: pin)
                     }
                 }
                 
