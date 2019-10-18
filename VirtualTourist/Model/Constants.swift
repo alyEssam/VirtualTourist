@@ -40,7 +40,7 @@ struct FlickrParameterValues {
     static let GalleryPhotosMethod = "flickr.galleries.getPhotos"
     static let MediumURL = "url_m"
     static let UseSafeSearch = "1"
-
   }
+    
 }
 
